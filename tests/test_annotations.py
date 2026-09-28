@@ -3,7 +3,12 @@
 O gate "No approval received" é do cliente (Claude.ai). O servidor só sinaliza
 via annotations: readOnlyHint em leituras (auto-aprovadas), e hints coerentes
 nas escritas. Ver a nota técnica e _aplicar_tool_annotations em server.py.
+
+Critério do diretório da Anthropic: toda tool tem `title` e o hint aplicável —
+readOnlyHint=true na leitura, destructiveHint=true na tool que modifica ou
+apaga dado. Aditivas (criar, incluir, registrar) ficam destructiveHint=false.
 """
+import asyncio
 import os
 import sys
 
@@ -31,10 +36,28 @@ def test_leitura_pura_read_only():
         assert _ann(n).readOnlyHint is True, n
 
 
+def test_todas_as_tools_expoem_title():
+    listadas = asyncio.run(srv.mcp.list_tools())
+    assert len(listadas) == len(_TOOLS)
+    sem = [t.name for t in listadas
+           if not t.title or not t.annotations or t.annotations.title != t.title]
+    assert not sem, f"tools sem title (ou divergente da annotation): {sem}"
+
+
+def test_titles_sao_unicos():
+    titulos = [t.title for t in _TOOLS.values()]
+    repetidos = {x for x in titulos if titulos.count(x) > 1}
+    assert not repetidos, f"titles repetidos: {repetidos}"
+
+
+def test_baixar_anexo_e_leitura():
+    assert _ann("sei_baixar_anexo").readOnlyHint is True
+
+
 def test_editar_secao_hints():
     a = _ann("sei_editar_secao")
     assert a.readOnlyHint is False
-    assert a.destructiveHint is False
+    assert a.destructiveHint is True
     assert a.idempotentHint is True
 
 
@@ -50,9 +73,27 @@ def test_exclusao_e_destrutiva():
         assert a.readOnlyHint is False and a.destructiveHint is True, n
 
 
-def test_alterar_e_idempotente_mas_nao_destrutivo():
+def test_alterar_e_idempotente_e_destrutivo():
     a = _ann("sei_alterar_processo")
-    assert a.idempotentHint is True and a.destructiveHint is False
+    assert a.idempotentHint is True and a.destructiveHint is True
+
+
+def test_escrita_que_sobrescreve_apaga_ou_tira_da_unidade_e_destrutiva():
+    for n in ("sei_alterar_documento_interno", "sei_assinar_documento",
+              "sei_assinar_bloco", "sei_enviar_processo", "sei_concluir_processo",
+              "sei_cassar_credenciamento", "sei_renunciar_credenciamento",
+              "sei_remover_atribuicao", "sei_retirar_processo_bloco_interno",
+              "sei_cancelar_disponibilizacao_bloco", "sei_desativar_marcador"):
+        a = _ann(n)
+        assert a.readOnlyHint is False and a.destructiveHint is True, n
+
+
+def test_escrita_aditiva_nao_e_destrutiva():
+    for n in ("sei_criar_documento", "sei_criar_processo",
+              "sei_incluir_documento_bloco_assinatura", "sei_registrar_andamento",
+              "sei_dar_ciencia", "sei_acompanhar_processo"):
+        a = _ann(n)
+        assert a.readOnlyHint is False and a.destructiveHint is False, n
 
 
 if __name__ == "__main__":

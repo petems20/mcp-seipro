@@ -163,10 +163,9 @@ mcp = FastMCP(
     instructions=(
         "MCP Server para o SEI (Sistema Eletrônico de Informações). "
         "Permite gerenciar processos, documentos, tramitação e assinatura. "
-        "ASSINATURA: as credenciais do usuário já estão configuradas no servidor. "
-        "NUNCA peça login ou senha ao usuário para assinar. Basta chamar "
-        "sei_assinar_documento com o id do documento e o cargo. Se não souber "
-        "o cargo, chame sem cargo para obter a lista e pergunte ao usuário. "
+        "ASSINATURA: sei_assinar_documento usa a sessão já autenticada no servidor "
+        "e não recebe login nem senha — só o id do documento e o cargo. Chamada "
+        "sem cargo devolve a lista de cargos disponíveis para o usuário escolher. "
         "Fluxo típico: sei_trocar_unidade → sei_listar_processos → "
         "sei_consultar_processo (obter IdProcedimento) → sei_arvore_processo → "
         "sei_ler_documento. Para criar docs: sei_pesquisar_tipos_documento → "
@@ -2456,6 +2455,21 @@ async def sei_cancelar_assinatura(
         return _error(msg)
 
 
+async def _pedir_cargo(client: SEIClient) -> str:
+    """Resposta das tools de assinatura chamadas sem `cargo`: os cargos disponíveis."""
+    try:
+        resp = await client._request("GET", "/assinante/listar")
+        cargos = resp.json().get("data", [])
+    except Exception:
+        cargos = []
+    return _json({
+        "error": "Cargo/Função não informado — é obrigatório para assinatura.",
+        "cargos_disponiveis": cargos,
+        "dica": "O cargo é escolha do usuário, entre os de cargos_disponiveis, e vai "
+                "no parâmetro `cargo`. A tool não guarda o cargo entre chamadas.",
+    })
+
+
 @mcp.tool()
 async def sei_assinar_documento(
     id_documento: str,
@@ -2467,10 +2481,9 @@ async def sei_assinar_documento(
 
     A autenticação é automática — basta informar o documento e o cargo.
 
-    IMPORTANTE: o parâmetro `cargo` é OBRIGATÓRIO. Sem ele a assinatura falha.
-    Se não souber o cargo, chame sem cargo para obter a lista de opções.
-    Pergunte ao usuário qual cargo usar e chame novamente com o cargo escolhido.
-    Grave o cargo escolhido para reutilizar nas próximas assinaturas.
+    O parâmetro `cargo` é obrigatório para assinar. Chamada sem cargo não assina:
+    devolve a lista de cargos disponíveis, para o usuário escolher. O cargo não
+    fica guardado entre chamadas.
 
     Parâmetros:
     - id_documento: ID interno do documento ou número SEI (protocoloFormatado).
@@ -2493,22 +2506,8 @@ async def sei_assinar_documento(
         except Exception:
             doc_id = id_documento.strip()  # Manter original se resolver falhar
 
-        # Se cargo não informado, listar opções e pedir ao usuário
         if not cargo:
-            try:
-                resp = await client._request("GET", "/assinante/listar")
-                data = resp.json()
-                cargos = data.get("data", [])
-            except Exception:
-                cargos = []
-            return _json({
-                "error": "Cargo/Função não informado — é obrigatório para assinatura.",
-                "cargos_disponiveis": cargos,
-                "dica": "Pergunte ao usuário qual cargo/função usar para assinar. "
-                        "Os cargos disponíveis estão listados acima. "
-                        "IMPORTANTE: após o usuário escolher, salve o cargo na memória da conversa "
-                        "para reutilizar em todas as próximas assinaturas sem perguntar novamente.",
-            })
+            return await _pedir_cargo(client)
 
         # Garante que a autenticação rodou e captura IdUsuario da sessão
         await client._get_headers()
@@ -2993,9 +2992,9 @@ async def sei_assinar_bloco(
 
     A autenticação é automática — basta informar o bloco e o cargo.
 
-    IMPORTANTE: o parâmetro `cargo` é OBRIGATÓRIO. Sem ele a assinatura falha.
-    Se não souber o cargo, chame sem cargo para ver a lista de opções.
-    Pergunte ao usuário e grave o cargo para reutilizar na mesma conversa.
+    O parâmetro `cargo` é obrigatório para assinar. Chamada sem cargo não assina:
+    devolve a lista de cargos disponíveis, para o usuário escolher. O cargo não
+    fica guardado entre chamadas.
 
     - id_bloco: ID do bloco
     - cargo: cargo/função — OBRIGATÓRIO (se omitido, lista opções disponíveis)
@@ -3005,19 +3004,7 @@ async def sei_assinar_bloco(
         login = client._usuario
         senha = client._senha
         if not cargo:
-            try:
-                resp = await client._request("GET", "/assinante/listar")
-                data = resp.json()
-                cargos = data.get("data", [])
-            except Exception:
-                cargos = []
-            return _json({
-                "error": "Cargo/Função não informado.",
-                "cargos_disponiveis": cargos,
-                "dica": "Pergunte ao usuário qual cargo usar. "
-                        "IMPORTANTE: após o usuário escolher, salve o cargo na memória da conversa "
-                        "para reutilizar em todas as próximas assinaturas sem perguntar novamente.",
-            })
+            return await _pedir_cargo(client)
         result = await client.assinar_bloco(
             id_bloco=id_bloco, login=login, senha=senha, cargo=cargo,
         )
@@ -3036,9 +3023,9 @@ async def sei_assinar_documentos_bloco(
 
     A autenticação é automática — basta informar os documentos e o cargo.
 
-    IMPORTANTE: o parâmetro `cargo` é OBRIGATÓRIO. Sem ele a assinatura falha.
-    Se não souber o cargo, chame sem cargo para ver a lista de opções.
-    Pergunte ao usuário e grave o cargo para reutilizar na mesma conversa.
+    O parâmetro `cargo` é obrigatório para assinar. Chamada sem cargo não assina:
+    devolve a lista de cargos disponíveis, para o usuário escolher. O cargo não
+    fica guardado entre chamadas.
 
     - documentos: ID(s) de documento(s) separados por vírgula
     - cargo: cargo/função — OBRIGATÓRIO (se omitido, lista opções disponíveis)
@@ -3048,19 +3035,7 @@ async def sei_assinar_documentos_bloco(
         login = client._usuario
         senha = client._senha
         if not cargo:
-            try:
-                resp = await client._request("GET", "/assinante/listar")
-                data = resp.json()
-                cargos = data.get("data", [])
-            except Exception:
-                cargos = []
-            return _json({
-                "error": "Cargo/Função não informado.",
-                "cargos_disponiveis": cargos,
-                "dica": "Pergunte ao usuário qual cargo usar. "
-                        "IMPORTANTE: após o usuário escolher, salve o cargo na memória da conversa "
-                        "para reutilizar em todas as próximas assinaturas sem perguntar novamente.",
-            })
+            return await _pedir_cargo(client)
         result = await client.assinar_documentos_bloco(
             login=login, senha=senha, cargo=cargo, documentos=documentos,
         )
@@ -4623,15 +4598,143 @@ async def sei_alterar_anotacao_bloco_assinatura(
 # de forma consistente, sem anotar 116 decorators à mão.
 # ---------------------------------------------------------------------------
 _ANNOT_VERBOS_LEITURA = {
-    "listar", "pesquisar", "consultar", "buscar", "ler", "arvore", "gerar",
+    "listar", "pesquisar", "consultar", "buscar", "ler", "arvore", "gerar", "baixar",
     "estilos", "resumo", "versao", "parametros", "verificar", "historico", "sugestao",
 }
-_ANNOT_VERBOS_DESTRUTIVOS = {"excluir"}          # exclusão irreversível
+# Critério do diretório da Anthropic: destructiveHint=True em tool que modifica
+# ou apaga dado. Aqui: apaga (excluir, remover, retirar, cancelar, cassar,
+# renunciar, desativar), sobrescreve (alterar, editar) ou tem efeito que a API
+# não desfaz / tira o processo da unidade (assinar, enviar, concluir). Criar,
+# incluir, anotar e registrar só acrescentam → False.
+_ANNOT_VERBOS_DESTRUTIVOS = {
+    "excluir", "remover", "retirar", "cancelar", "cassar", "renunciar", "desativar",
+    "alterar", "editar", "assinar", "enviar", "concluir",
+}
 _ANNOT_VERBOS_IDEMPOTENTES = {"alterar", "editar"}  # reaplicar o mesmo conteúdo converge
+
+# Título legível de cada tool (campo `title` do MCP, exigido pelo diretório).
+_TITULOS_TOOLS = {
+    "sei_listar_unidades": "Listar unidades do usuário",
+    "sei_trocar_unidade": "Trocar unidade ativa",
+    "sei_pesquisar_unidades": "Pesquisar unidades",
+    "sei_listar_usuarios": "Listar usuários",
+    "sei_consultar_processo": "Consultar processo",
+    "sei_arvore_processo": "Árvore do processo",
+    "sei_listar_documentos": "Listar documentos do processo",
+    "sei_buscar_documento": "Buscar documento pelo número SEI",
+    "sei_ler_documento": "Ler documento",
+    "sei_baixar_anexo": "Baixar anexo (documento externo)",
+    "sei_criar_documento": "Criar documento interno",
+    "sei_listar_secoes": "Listar seções do documento",
+    "sei_gerar_referencia": "Gerar referência a documento",
+    "sei_estilos": "Estilos de formatação do SEI",
+    "sei_editar_secao": "Editar seções do documento",
+    "sei_listar_processos": "Listar processos da unidade",
+    "sei_resumo_processos": "Resumo dos processos da unidade",
+    "sei_pesquisar_processos": "Pesquisar processos",
+    "sei_pesquisar_hipoteses_legais": "Pesquisar hipóteses legais",
+    "sei_pesquisar_tipos_processo": "Pesquisar tipos de processo",
+    "sei_alterar_processo": "Alterar processo",
+    "sei_criar_processo": "Criar processo",
+    "sei_enviar_processo": "Enviar (tramitar) processo",
+    "sei_marcar_nao_lido": "Marcar processo como não lido",
+    "sei_concluir_processo": "Concluir processo na unidade",
+    "sei_reabrir_processo": "Reabrir processo",
+    "sei_atribuir_processo": "Atribuir processo",
+    "sei_cancelar_assinatura": "Cancelar assinatura",
+    "sei_assinar_documento": "Assinar documento",
+    "sei_pesquisar_tipos_documento": "Pesquisar tipos de documento",
+    "sei_sobrestar_processo": "Sobrestar processo",
+    "sei_remover_sobrestamento": "Remover sobrestamento",
+    "sei_dar_ciencia": "Dar ciência",
+    "sei_listar_ciencias": "Listar ciências",
+    "sei_remover_atribuicao": "Remover atribuição",
+    "sei_receber_processo": "Receber processo",
+    "sei_listar_unidades_processo": "Unidades onde o processo está aberto",
+    "sei_listar_interessados": "Listar interessados do processo",
+    "sei_listar_sobrestamentos": "Histórico de sobrestamentos",
+    "sei_listar_assinaturas": "Listar assinaturas do documento",
+    "sei_registrar_andamento": "Registrar andamento",
+    "sei_pesquisar_contatos": "Pesquisar contatos",
+    "sei_criar_documento_externo": "Criar documento externo (upload)",
+    "sei_assinar_bloco": "Assinar bloco de assinatura",
+    "sei_assinar_documentos_bloco": "Assinar documentos do bloco",
+    "sei_criar_marcador": "Criar marcador",
+    "sei_excluir_marcador": "Excluir marcador",
+    "sei_marcar_processo": "Marcar processo",
+    "sei_pesquisar_marcadores": "Pesquisar marcadores",
+    "sei_consultar_marcador_processo": "Marcadores do processo",
+    "sei_acompanhar_processo": "Acompanhar processo",
+    "sei_remover_acompanhamento": "Remover acompanhamento especial",
+    "sei_criar_grupo_acompanhamento": "Criar grupo de acompanhamento",
+    "sei_excluir_grupo_acompanhamento": "Excluir grupo de acompanhamento",
+    "sei_listar_grupos_acompanhamento": "Listar grupos de acompanhamento",
+    "sei_criar_bloco_interno": "Criar bloco interno",
+    "sei_incluir_processo_bloco_interno": "Incluir processo em bloco interno",
+    "sei_retirar_processo_bloco_interno": "Retirar processo de bloco interno",
+    "sei_criar_bloco_assinatura": "Criar bloco de assinatura",
+    "sei_incluir_documento_bloco_assinatura": "Incluir documento em bloco de assinatura",
+    "sei_disponibilizar_bloco_assinatura": "Disponibilizar bloco de assinatura",
+    "sei_cancelar_disponibilizacao_bloco": "Cancelar disponibilização de bloco",
+    "sei_pesquisar_blocos_assinatura": "Pesquisar blocos de assinatura",
+    "sei_criar_anotacao": "Criar anotação no processo",
+    "sei_versao": "Versão do SEI e do wssei",
+    "sei_listar_orgaos": "Listar órgãos",
+    "sei_listar_contextos": "Listar contextos do órgão",
+    "sei_pesquisar_usuarios": "Pesquisar usuários",
+    "sei_pesquisar_outras_unidades": "Pesquisar outras unidades",
+    "sei_pesquisar_textos_padrao": "Pesquisar textos padrão",
+    "sei_consultar_documento_externo": "Consultar documento externo",
+    "sei_alterar_documento_interno": "Alterar metadados de documento interno",
+    "sei_alterar_documento_externo": "Alterar documento externo",
+    "sei_pesquisar_tipos_conferencia": "Pesquisar tipos de conferência",
+    "sei_sugestao_assuntos_documento": "Sugerir assuntos para tipo de documento",
+    "sei_listar_blocos_documento": "Blocos de assinatura do documento",
+    "sei_pesquisar_tipos_documento_externo": "Pesquisar tipos de documento externo",
+    "sei_parametros_upload": "Parâmetros de upload",
+    "sei_pesquisar_assuntos": "Pesquisar assuntos",
+    "sei_sugestao_assuntos_processo": "Sugerir assuntos para tipo de processo",
+    "sei_consultar_atribuicao": "Consultar atribuição do processo",
+    "sei_verificar_acesso": "Verificar acesso ao processo",
+    "sei_listar_relacionamentos": "Listar processos relacionados",
+    "sei_listar_atividades": "Histórico de andamentos do processo",
+    "sei_listar_meus_acompanhamentos": "Meus acompanhamentos especiais",
+    "sei_listar_acompanhamentos_unidade": "Acompanhamentos especiais da unidade",
+    "sei_alterar_acompanhamento": "Alterar acompanhamento especial",
+    "sei_listar_credenciamentos": "Listar credenciamentos",
+    "sei_conceder_credenciamento": "Conceder credenciamento",
+    "sei_renunciar_credenciamento": "Renunciar a credenciamento",
+    "sei_cassar_credenciamento": "Cassar credenciamento",
+    "sei_listar_assinantes": "Listar cargos de assinatura",
+    "sei_listar_orgaos_assinante": "Listar órgãos para assinatura",
+    "sei_criar_observacao": "Criar observação da unidade",
+    "sei_criar_contato": "Criar contato",
+    "sei_listar_grupos_modelos": "Listar grupos de modelos",
+    "sei_listar_modelos": "Listar modelos de documento",
+    "sei_desativar_marcador": "Desativar marcador",
+    "sei_reativar_marcador": "Reativar marcador",
+    "sei_historico_marcador_processo": "Histórico de marcadores do processo",
+    "sei_listar_processos_bloco_interno": "Processos do bloco interno",
+    "sei_alterar_bloco_interno": "Alterar bloco interno",
+    "sei_excluir_bloco_interno": "Excluir bloco interno",
+    "sei_concluir_bloco_interno": "Concluir bloco interno",
+    "sei_reabrir_bloco_interno": "Reabrir bloco interno",
+    "sei_anotar_processo_bloco_interno": "Anotar processo em bloco interno",
+    "sei_alterar_anotacao_bloco_interno": "Alterar anotação em bloco interno",
+    "sei_listar_documentos_bloco_assinatura": "Documentos do bloco de assinatura",
+    "sei_retirar_documentos_bloco_assinatura": "Retirar documentos de bloco de assinatura",
+    "sei_alterar_bloco_assinatura": "Alterar bloco de assinatura",
+    "sei_excluir_bloco_assinatura": "Excluir bloco de assinatura",
+    "sei_concluir_bloco_assinatura": "Concluir bloco de assinatura",
+    "sei_reabrir_bloco_assinatura": "Reabrir bloco de assinatura",
+    "sei_retornar_bloco_assinatura": "Retornar bloco de assinatura",
+    "sei_anotar_documento_bloco_assinatura": "Anotar documento em bloco de assinatura",
+    "sei_alterar_anotacao_bloco_assinatura": "Alterar anotação em bloco de assinatura",
+}
 
 
 def _aplicar_tool_annotations() -> None:
-    """Aplica ToolAnnotations às tools registradas, por convenção de nome.
+    """Aplica title e ToolAnnotations às tools registradas, por convenção de nome.
 
     Respeita annotations já declaradas explicitamente no decorator (não sobrescreve).
     """
@@ -4639,14 +4742,21 @@ def _aplicar_tool_annotations() -> None:
         from mcp.types import ToolAnnotations
         tools = getattr(getattr(mcp, "_tool_manager", None), "_tools", None) or {}
         for nome, tool in tools.items():
+            if not tool.title:
+                tool.title = _TITULOS_TOOLS.get(nome)
             if getattr(tool, "annotations", None) is not None:
+                if tool.annotations.title is None:
+                    tool.annotations = tool.annotations.model_copy(update={"title": tool.title})
                 continue
             partes = nome.split("_")
             verbo = partes[1] if len(partes) > 1 else ""
             if verbo in _ANNOT_VERBOS_LEITURA:
-                tool.annotations = ToolAnnotations(readOnlyHint=True, openWorldHint=True)
+                tool.annotations = ToolAnnotations(
+                    title=tool.title, readOnlyHint=True, openWorldHint=True,
+                )
             else:
                 tool.annotations = ToolAnnotations(
+                    title=tool.title,
                     readOnlyHint=False,
                     destructiveHint=verbo in _ANNOT_VERBOS_DESTRUTIVOS,
                     idempotentHint=True if verbo in _ANNOT_VERBOS_IDEMPOTENTES else None,
