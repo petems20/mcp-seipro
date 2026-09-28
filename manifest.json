@@ -8,14 +8,15 @@
   "author": {
     "name": "Pedro Soares",
     "email": "pedro.soares@antaq.gov.br",
-    "url": "https://github.com/ANTAQ/mcp-seipro"
+    "url": "https://github.com/SEI-Pro/mcp-seipro"
   },
-  "homepage": "https://github.com/ANTAQ/mcp-seipro",
+  "homepage": "https://github.com/SEI-Pro/mcp-seipro",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ANTAQ/mcp-seipro"
+    "url": "https://github.com/SEI-Pro/mcp-seipro"
   },
   "license": "MIT",
+  "privacy_policies": ["https://github.com/SEI-Pro/mcp-seipro/blob/main/PRIVACY.md"],
   "icon": "icon.png",
   "server": {
     "type": "python",
@@ -73,7 +74,7 @@
     {"name": "sei_listar_processos", "description": "Lista processos da caixa da unidade"},
     {"name": "sei_consultar_processo", "description": "Consulta detalhes de um processo"},
     {"name": "sei_criar_processo", "description": "Cria novo processo"},
-    {"name": "sei_tramitar_processo", "description": "Tramita processo para outra unidade"},
+    {"name": "sei_enviar_processo", "description": "Envia (tramita) processo para outra unidade"},
     {"name": "sei_ler_documento", "description": "Le o conteudo de um documento"},
     {"name": "sei_criar_documento", "description": "Cria novo documento em um processo"},
     {"name": "sei_assinar_documento", "description": "Assina documento digitalmente"}

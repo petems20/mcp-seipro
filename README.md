@@ -402,6 +402,8 @@ A REST mod-wssei continua sendo o caminho **padrão** para todas as outras opera
 
 ## Privacidade e dados restritos
 
+Como o MCP trata credenciais, conteúdo e registros técnicos está na [Política de Privacidade](PRIVACY.md).
+
 O SEI classifica processos e documentos em três níveis: público (`nivelAcesso=0`), restrito (`1`) e sigiloso (`2`). O MCP usa as credenciais do usuário, então acessa o que o usuário enxergaria no SEI — incluindo restritos. Sigilosos exigem credenciamento prévio no próprio SEI.
 
 Como conteúdo restrito pode trafegar para um provedor LLM (que talvez logue, retenha ou treine modelos com ele), o MCP impõe um **gate de consentimento** nas duas tools que entregam conteúdo bruto:

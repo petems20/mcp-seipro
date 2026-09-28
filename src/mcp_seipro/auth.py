@@ -467,6 +467,7 @@ _LOGIN_HTML = """<!DOCTYPE html>
            font-weight: 600; }
   button:hover { background: #2563eb; }
   .help { color: #64748b; font-size: .75rem; text-align: center; margin-top: 1rem; }
+  .help a { color: #94a3b8; }
 </style>
 </head>
 <body>
@@ -493,6 +494,7 @@ _LOGIN_HTML = """<!DOCTYPE html>
   </label>
   <button type="submit">Conectar</button>
   <p class="help">Suas credenciais s&#227;o criptografadas (AES-256-GCM) dentro do token de acesso. O servidor n&#227;o as grava em disco nem em banco.</p>
+  <p class="help"><a href="https://github.com/SEI-Pro/mcp-seipro/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer">Pol&#237;tica de Privacidade</a></p>
 </form>
 </body>
 </html>"""

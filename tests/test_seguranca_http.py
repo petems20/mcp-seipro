@@ -228,6 +228,16 @@ def test_login_escapa_nome_do_cliente_e_mostra_destino():
     assert "frame-ancestors 'none'" in r.headers["content-security-policy"]
 
 
+def test_login_linka_a_politica_de_privacidade_em_outra_aba():
+    sid = _pendente(nome="Claude")
+    r = _app().get(f"/login?session={sid}")
+    assert r.status_code == 200
+    link = r.text.split('href="https://github.com/SEI-Pro/mcp-seipro/blob/main/PRIVACY.md"', 1)
+    assert len(link) == 2, "link para PRIVACY.md ausente"
+    tag = link[1].split(">", 1)[0]
+    assert 'target="_blank"' in tag and 'rel="noopener noreferrer"' in tag
+
+
 @pytest.mark.parametrize("url", [
     "http://sei.exemplo.gov.br/api",
     "https://169.254.169.254/latest/meta-data/",
