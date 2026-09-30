@@ -67,6 +67,15 @@ _RE_TEXTO_ANCORA_OK = re.compile(r"^(\d{5,}|\d{4,6}\.\d{6}/\d{4}-\d{2})$")
 _RE_CLASS = re.compile(r"""\bclass\s*=\s*["']([^"']*)["']""", re.IGNORECASE)
 _RE_TAGS = re.compile(r"<[^>]+>")
 _RE_BASE64 = re.compile(r"data:image/[a-z+]+;base64,", re.IGNORECASE)
+_RE_PLACEHOLDER = re.compile(
+    r"NOME DO ASSINANTE|NOME DO SIGNAT[ÁA]RIO|\bX{3,}\b|\[(?:inserir|preencher)[^\]]*\]|\bTODO\b",
+    re.IGNORECASE)
+# Convenções de redação (Funai/CGGE) — informativas: o órgão pode adotar outras.
+_REDACAO = [
+    ("travessao", re.compile(r"\s--\s"), "use travessão – em vez de --"),
+    ("decimal_percentual", re.compile(r"\b\d+\.\d+\s?%"), "vírgula decimal em percentual (78,2%)"),
+    ("horario", re.compile(r"\b\d{1,2}:\d{2}\s?h\b"), "horário no formato 9h30, não 9:30h"),
+]
 _RE_STYLE_LAYOUT = re.compile(r"\b(text-align|text-indent|font-size|font-family|margin-left)\s*:",
                               re.IGNORECASE)
 
@@ -140,9 +149,21 @@ def validar(conteudo: str) -> list[dict]:
                 f"lnkSei{id_ancora}: id igual ao texto — o id deve ser o INTERNO, não o nº SEI; "
                 "confirme (sei_gerar_referencia ou URL id_documento= da árvore)")
 
-    if _RE_BASE64.search(conteudo):
-        add("aviso", "imagem_base64", "imagem embutida em base64 — pesada para o SEI; "
-            "prefira 'FIGURA N' + título")
+    n_b64 = len(_RE_BASE64.findall(conteudo))
+    if n_b64:
+        add("info", "imagem_base64",
+            f"{n_b64} imagem(ns) base64 — em edição de texto, a contagem antes/depois tem que "
+            "bater; ao inserir figura nova, confirme que o documento deve levá-la embutida")
+
+    texto_puro = html_module.unescape(_RE_TAGS.sub(" ", conteudo))
+    placeholders = sorted({m.group(0) for m in _RE_PLACEHOLDER.finditer(texto_puro)})
+    if placeholders:
+        add("erro", "placeholder", "texto de modelo que não pode ficar no documento",
+            ocorrencias=placeholders)
+    for regra, rx, detalhe in _REDACAO:
+        achados_rx = sorted({m.group(0) for m in rx.finditer(texto_puro)})
+        if achados_rx:
+            add("info", regra, detalhe, ocorrencias=achados_rx[:10])
 
     desconhecidas = sorted({c for grupo in _RE_CLASS.findall(conteudo)
                             for c in grupo.split() if c not in CLASSES_CONHECIDAS})

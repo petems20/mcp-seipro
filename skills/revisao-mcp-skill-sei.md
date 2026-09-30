@@ -138,15 +138,19 @@ a rota e mantém as regras num lugar só.
 
 ```
 skills/sei-editar-documentos/
-├── SKILL.md                     roteamento + identidade + 8 regras de conteúdo + fluxo
+├── SKILL.md                        rotas, identidade, 9 regras de conteúdo, ciclo testado
 ├── references/
-│   ├── rota-api.md              fluxo com as tools sei_*, leitura de erros, limites
-│   ├── rota-navegador.md        Chrome + Console (conteúdo da v1, reorganizado + popup/BLOCKED)
-│   ├── estilos-e-modelos.md     classes, âncoras, tabelas, Ofício/Despacho/NT, .qmd
-│   └── diagnostico.md           sintomas → causa → ação (Chrome, API, Cloudflare)
+│   ├── rota-api.md                 fluxo com as tools sei_*, leitura de erros, limites
+│   ├── rota-navegador.md           Chrome + Console: instâncias, leitura, faixa/pontual, teste, conferência
+│   ├── estilos-e-modelos.md        classes, âncoras, tabelas/figuras, Ofício/Despacho/NT
+│   ├── revisao-e-consistencia.md   convenções de redação, consistência NT × Ofício
+│   ├── qmd-e-pdf.md                .qmd → SEI e SEI/PDF → .qmd
+│   └── diagnostico.md              sintomas → causa → ação (Chrome, API, Cloudflare)
 └── scripts/
-    ├── validar_html_sei.py      lint + --corrigir (stdlib; porta das regras do MCP)
-    └── sei-console-kit.js       window.SEI: ler, blocos, limpar, avisos, substituirFaixa (dryRun)
+    ├── validar_html_sei.py         lint + --corrigir (stdlib)
+    ├── sei-console-kit.js          window.SEI (prévia por padrão, guardas de âncora e imagem)
+    ├── modelo-edicao-pontual.js    molde em duas fases para documento longo
+    └── testar_no_chromium.mjs      testa um script 2× contra o HTML real
 ```
 
 **Diferenças para a v1:**
@@ -169,6 +173,49 @@ ausente (não altera), recusa de instância readOnly.
 **Não testado:** SEI real com sessão (nem pela API nem pelo editor). A versão
 do CKEditor no SEI 5 não foi verificada; o kit informa `CKEDITOR.version` ao
 carregar.
+
+## 6. Incorporação da evolução da v1 (outra sessão)
+
+A outra sessão evoluiu a v1 a partir de uso real: uma Nota Técnica de ~190 mil
+caracteres com 28 imagens, mais o Ofício que a acompanha. O que entrou na v2:
+
+| Da outra sessão | Onde ficou |
+|---|---|
+| ciclo ler (arquivo) → script pontual → testar offline → aplicar/salvar → reler → conferir | `SKILL.md` §3 |
+| estrutura de instâncias do Ofício e da Nota Técnica (Funai) | `rota-navegador.md` §2 |
+| entidades em `getData()`: achar texto por `textContent`, âncora sem acento | `rota-navegador.md` §3 (o kit já normaliza) |
+| inspeção que **baixa arquivo** + `copy()`, com tamanho e `dirty` | `SEI.inspecionar()` no kit |
+| "Visualizar documento" ≠ conteúdo do editor | `SKILL.md` §1, `rota-navegador.md` §4, `diagnostico.md` |
+| `dirty=true` na leitura inicial | `SKILL.md` §3, kit (`dirty_antes`) |
+| edição pontual em duas fases, idempotente, com guarda de imagens | `scripts/modelo-edicao-pontual.js` (+ `trocaGlobal` e `linha` de tabela, e flag `APLICAR`) |
+| armadilhas (já aplicado, duas trocas no mesmo nó, renumeração, inserção) | `rota-navegador.md` §5 |
+| NBSP literal proibido no código | `SKILL.md` regra 4; o próprio kit tinha um NBSP literal, corrigido |
+| teste em Chromium headless (2 execuções, imagens idênticas, screenshot) | `scripts/testar_no_chromium.mjs` |
+| conferência da versão salva; não reverter edição manual | `rota-navegador.md` §9, `SKILL.md` §3 |
+| tabelas com `thead`/`th`, zebra no `tbody`, blocos TABELA/FIGURA, clonar linha | `estilos-e-modelos.md` |
+| Ofício: placeholder, fecho com vírgula, `href` lidos do documento, tabela de anexos | `estilos-e-modelos.md` |
+| convenções de redação Funai/CGGE e consistência NT × Ofício | `revisao-e-consistencia.md` (+ checagens informativas no validador) |
+| `.qmd` ← PDF assinado (PyMuPDF, comparação nos dois sentidos) | `qmd-e-pdf.md` |
+| lista Trocar/Por no fallback de texto | `SKILL.md` §6 |
+
+**Onde a v2 diverge da proposta:**
+- Tabelas continuam com `rgb()` em vez de `#646464`/`#dddddd`. É neutro na
+  Funai (sem Cloudflare) e evita o 403 em órgão com WAF.
+- "Sem imagem base64" virou "imagens existentes são intocáveis": a NT final
+  leva figuras embutidas, então a regra antiga estava errada. No validador,
+  imagem passou de aviso a informativo.
+- O `substituirFaixa` do kit ganhou as guardas da proposta: âncora ambígua →
+  nada muda; recusa remover imagem sem `{permitirImagens: true}`.
+- O teste de instância do modelo pontual procura no HTML cru (âncora sem
+  acento), como na proposta. O kit procura no texto normalizado, então aceita
+  âncora com acento.
+
+**Testado:** o modelo pontual no harness sobre um corpo com imagens, tabela,
+NBSP e grafia divergente. A 1ª execução aplicou 3 alterações, a 2ª deu "Nada a
+fazer", com HTML idêntico entre as duas e as mesmas imagens na mesma ordem.
+Kit: novos casos (faixa com imagem recusada, `aplicar` com imagem recusado,
+âncora ambígua recusada, inspeção com aviso de `dirty`). Validador: placeholder
+como erro; `--`, `78.2%` e `9:30h` como informativos.
 
 **Para publicar:** substituir o conteúdo da skill atual (sincronizada da
 organização no Claude.ai) pela pasta `skills/sei-editar-documentos/` (zipar a

@@ -42,17 +42,45 @@ prevalece** sobre esta lista.
 
 ## Tabelas
 
+Padrão observado na Funai (cores já em `rgb()`, ver nota abaixo):
+
 ```html
 <table border="1" cellpadding="4" style="border-collapse: collapse; border-color: rgb(100,100,100); margin-left: 1.18in; margin-right: auto; width: auto;">
-  <tr style="background-color: rgb(221,221,221);"><td><p class="Tabela_Texto_Centralizado"><strong>Coluna</strong></p></td>…</tr>
-  <tr><td><p class="Tabela_Texto_Alinhado_Esquerda">…</p></td>…</tr>
+  <thead>
+    <tr style="background-color: rgb(221,221,221);">
+      <th style="font-weight: normal; font-size: 16px;"><p class="Tabela_Texto_Centralizado"><strong>Coluna</strong></p></th>…
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><p class="Tabela_Texto_Alinhado_Esquerda">…</p></td>…</tr>
+    <tr style="background-color: rgb(221,221,221);">…</tr>   <!-- zebra: linhas pares do tbody -->
+  </tbody>
 </table>
-<p class="Tabela_Texto_Centralizado">Tabela 1 – Título</p>
 ```
 
-Cores **sempre** em `rgb()` (o `#` em `style` dispara o WAF em órgãos com
-Cloudflare). Zebra: `rgb(221,221,221)` nas linhas ímpares.
-Figuras: sem `<img>`; texto "FIGURA N" + título em negrito + subtítulo opcional.
+- 1ª coluna `Tabela_Texto_Alinhado_Esquerda`; centralizados
+  `Tabela_Texto_Centralizado`. Colunas de sigla com `white-space: nowrap`
+  (`CR-CEPIRN` quebra no hífen).
+- **Cores em `rgb()`, não `#hex`.** Na ANTAQ, `#` dentro de `style` fez o
+  Cloudflare barrar o salvamento. Na Funai não há Cloudflare, então lá é só
+  precaução sem custo. Se o editor reconverter para hex ao salvar, não é
+  problema onde não há WAF.
+- Editar tabela existente (ex. anexo de Ofício, com `<span>` aninhados
+  carregando fonte, cor e negrito): **clone uma linha de dados** como modelo e
+  troque só o texto do elemento mais interno de cada célula. Ajuste
+  `style.backgroundColor` para as cores alternadas por grupo. Coluna nova:
+  clone a última célula do cabeçalho e das linhas.
+
+**Bloco de tabela numa Nota Técnica** (irmãos diretos de `body`):
+`TABELA N` (rótulo, `Texto_Justificado_Recuo_Primeira_Linha_Esp_Simples`) →
+legenda em `<strong>` → `<table>` → `<em>Fonte: …</em>` → parágrafo em branco.
+Para achar a tabela N: rótulo por texto exato, depois `nextElementSibling`
+até o `TABLE`.
+
+**Bloco de figura:** `FIGURA N` → título em negrito → subtítulo opcional →
+`<img>` base64 (a NT final leva as figuras embutidas). Em edição de texto,
+**nunca toque nas imagens** e confira a contagem de `<img>` antes e depois.
+Versão só-texto: `FIGURA N` + título em negrito + subtítulo, sem `<img>`.
 
 ## Ofício (Funai — formato aprovado pelo usuário)
 
@@ -63,13 +91,13 @@ mexer. Corpo (instância editável com `Assunto:`):
 
 ```html
 <p class="Texto_Alinhado_Esquerda_Espacamento_Simples">Aos Coordenadores Regionais da Fundação Nacional dos Povos Indígenas</p>
-<p class="Texto_Justificado" contenteditable="false"> </p>                    <!-- fixo -->
+<p class="Texto_Justificado" contenteditable="false">&nbsp;</p>                    <!-- fixo -->
 <p class="Texto_Alinhado_Esquerda_Espacamento_Simples"><strong>Assunto:</strong> …</p>
 <p class="Texto_Justificado_Recuo_Primeira_Linha">Prezados(as) …,</p>              <!-- vocativo -->
 <p class="Paragrafo_Numerado_Nivel1">…</p>                                           <!-- N parágrafos -->
-<p class="Texto_Justificado_Recuo_Primeira_Linha" contenteditable="false"> </p> <!-- fixo -->
+<p class="Texto_Justificado_Recuo_Primeira_Linha" contenteditable="false">&nbsp;</p> <!-- fixo -->
 <p class="Texto_Justificado_Recuo_Primeira_Linha">Atenciosamente,</p>
-<p class="Texto_Justificado_Recuo_Primeira_Linha"> </p>
+<p class="Texto_Justificado_Recuo_Primeira_Linha">&nbsp;</p>
 <p class="Tabela_Texto_Centralizado"><em>(Assinado Eletronicamente)</em><br />NOME EM MAIÚSCULAS<br />Cargo</p>
 ```
 
@@ -77,10 +105,17 @@ mexer. Corpo (instância editável com `Assunto:`):
   numa linha só. Preencha a linha `Assunto:` existente.
 - Fecho (Manual de Redação da Presidência): "Atenciosamente," (mesma hierarquia
   ou inferior); "Respeitosamente," (autoridade superior).
-- Signatário: se não for informado, pergunte. Ex.: ARTUR NOBRE MENDES —
-  Coordenador-Geral de Gestão Estratégica.
-- Links externos com a URL visível ("disponível em: <a href=URL>URL</a>") — o
-  Ofício é lido impresso/PDF.
+- Signatário: se não for informado, pergunte. Num script, deixe
+  `SIGNATARIO_NOME`/`SIGNATARIO_CARGO` como constantes no topo e diga qual
+  valor foi presumido. **Placeholders do modelo ("NOME DO ASSINANTE") não
+  podem ficar.** Ex.: ARTUR NOBRE MENDES — Coordenador-Geral de Gestão
+  Estratégica.
+- Fecho sempre **com vírgula**.
+- Links externos com a URL visível ("disponível em: <a href=URL>URL</a>"),
+  porque o Ofício é lido impresso/PDF. **Leia os `href` do próprio documento**
+  em vez de redigitá-los no script.
+- Tabela de anexos no corpo (ex. "Grupos de CRs"): ver "Editar tabela
+  existente" acima. Ela fica depois do signatário.
 - Coerência: aponte em uma linha divergências (ex. "planilha" que é um
   formulário Google; proposta "definitiva" que ainda depende de aprovação).
   Corrija só o inequívoco.
@@ -98,6 +133,13 @@ mexer. Corpo (instância editável com `Assunto:`):
 
 ## Nota Técnica / Parecer
 
+**Funai:** títulos de seção em `Texto_Fundo_Cinza_Maiusculas_Negrito` (sem
+autonumeração), corpo em `Paragrafo_Numerado_Nivel1`, tabelas e figuras nos
+blocos descritos em "Tabelas"; seções `Assunto:` → Sumário Executivo → … →
+encaminhamentos → tabela de assinaturas → referências.
+
+**ANTAQ / padrão mcp-seipro:** títulos autonumerados `Item_Nivel*`:
+
 ```html
 <p class="Item_Nivel1">Introdução</p>              <!-- vira "1. INTRODUÇÃO" -->
 <p class="Paragrafo_Numerado_Nivel1">…</p>
@@ -111,10 +153,6 @@ Markdown → SEI: `#`→`Item_Nivel1`, `##`→`Item_Nivel2`, `###`→`Item_Nivel
 parágrafo→`Paragrafo_Numerado_Nivel1`, lista ordenada por letra→`Item_Alinea_Letra`,
 `>`→`Citacao`.
 
-## Conteúdo vindo de .qmd (Quarto)
+## Conteúdo vindo de .qmd (Quarto) ou de PDF assinado
 
-Se o `.qmd` usa `targets::tar_read()`, use o `.html` renderizado (prosa final,
-citações resolvidas, tabelas computadas). Tire base64 antes do parsing
-(`re.sub(r'(src="data:image/[a-zA-Z]+;base64,)[^"]*(")', r'\1\2', html)`),
-parseie `#quarto-document-content` e converta cada bloco pelas tabelas acima.
-Depois: `scripts/validar_html_sei.py --corrigir`.
+Ver `qmd-e-pdf.md` (nos dois sentidos).

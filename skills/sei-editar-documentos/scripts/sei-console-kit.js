@@ -6,7 +6,7 @@
  *   SEI.corpo(/Assunto\s*:/i)            nome da ÚNICA instância editável que casa
  *   SEI.ler(nome)                        HTML sem base64 e sem entidades supérfluas
  *   SEI.blocos(nome)                     um resumo por bloco (índice, tag, classe, texto)
- *   SEI.inspecionar()                    copia todas as instâncias p/ a área de transferência
+ *   SEI.inspecionar()                    baixa sei_conteudo.html com todas as instâncias (e copia)
  *   SEI.limpar(html)                     cores hex → rgb() em style; entidades → UTF-8
  *   SEI.avisos(html)                     numeração manual, âncora suspeita, base64
  *   SEI.aplicar(nome, html, {dryRun})    substitui a instância inteira
@@ -78,7 +78,7 @@
       }
     });
     body.querySelectorAll('a[id^="lnkSei"]').forEach((a) => {
-      const t = a.textContent.replace(/ /g, ' ').trim();
+      const t = a.textContent.replace(/\u00a0/g, ' ').trim();
       if (!TEXTO_ANCORA_OK.test(t)) {
         av.push(a.id + ': texto "' + t + '" não é nº SEI nem nº de processo — o SEI descarta a âncora');
       } else if (a.id === 'lnkSei' + t) {
@@ -111,27 +111,42 @@
   function blocos(nome) {
     return [...parse(ed(nome).getData()).children].map((el, i) =>
       i + ' <' + el.tagName.toLowerCase() + (el.className ? ' .' + el.className : '') +
-      (el.getAttribute('contenteditable') === 'false' ? ' FIXO' : '') + '> ' +
+      (el.getAttribute('contenteditable') === 'false' ? ' FIXO' : '') +
+      (el.querySelector('img') || el.tagName === 'IMG' ? ' [img]' : '') + '> ' +
       el.textContent.trim().slice(0, 80)).join('\n');
   }
 
+  // Arquivo é o canal preferido para documento grande (~200 mil caracteres): o
+  // usuário anexa no chat. Separe as seções pelos cabeçalhos "=== txaEditor_… ===".
   function inspecionar() {
-    const out = Object.keys(CKEDITOR.instances).map((n) => {
+    const nomes = Object.keys(CKEDITOR.instances);
+    const out = nomes.map((n) => {
       const e = CKEDITOR.instances[n];
+      const h = ler(n);
       return '=== ' + n + (e.readOnly ? ' (somente leitura)' : '') +
-        ' | dirty=' + e.checkDirty() + ' ===\n' + ler(n);
+        ' | dirty=' + e.checkDirty() + ' | tamanho=' + h.length + ' ===\n' + h;
     }).join('\n\n');
-    if (typeof copy === 'function') {
-      copy(out);
-      return 'Copiado: ' + out.length + ' caracteres. Cole no chat.';
-    }
-    return out;
+    try { copy(out); } catch (err) { /* copy() só existe no console do DevTools */ }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([out], { type: 'text/html' }));
+    a.download = 'sei_conteudo.html';
+    document.body.appendChild(a); a.click(); a.remove();
+    const sujas = nomes.filter((n) => CKEDITOR.instances[n].checkDirty());
+    return 'OK: ' + nomes.length + ' seções, ' + out.length + ' caracteres. Arquivo sei_conteudo.html ' +
+      'baixado (e copiado). Anexe o arquivo no chat.' +
+      (sujas.length ? '\nATENÇÃO: há alterações não salvas em ' + sujas.join(', ') + '.' : '');
   }
+
+  const nImgs = (html) => (html.match(/<img\b/gi) || []).length;
 
   function relatorio(nome, antes, depois, extra, dryRun) {
     return JSON.stringify(Object.assign({
       instancia: nome,
       dryRun: dryRun,
+      // dirty=true ANTES de aplicar = alterações do usuário ainda não salvas; elas entram junto
+      dirty_antes: ed(nome).checkDirty(),
+      imagens_antes: nImgs(antes),
+      imagens_depois: nImgs(depois),
       bytes_antes: bytes(antes),
       bytes_depois: bytes(depois),
       avisos: avisos(depois),
@@ -144,19 +159,28 @@
     if (e.readOnly) throw new Error(nome + ' é somente leitura — seção gerada pelo SEI');
     const antes = e.getData();
     const novo = limpar(html);
+    if (nImgs(antes) && nImgs(novo) !== nImgs(antes) && !(opts && opts.permitirImagens)) {
+      return 'NADA ALTERADO: a instância tem ' + nImgs(antes) + ' imagem(ns) e o HTML novo ' +
+        nImgs(novo) + '. Use edição pontual (modelo-edicao-pontual.js) ou {permitirImagens: true}.';
+    }
     if (!dryRun) e.setData(novo);
     return relatorio(nome, antes, novo, {}, dryRun);
   }
 
   function substituirFaixa(nome, reIni, reFim, html, opts) {
-    const o = Object.assign({ dryRun: true, incluirInicio: false, incluirFim: false }, opts);
+    const o = Object.assign({ dryRun: true, incluirInicio: false, incluirFim: false,
+      permitirImagens: false }, opts);
     const e = ed(nome);
     if (e.readOnly) throw new Error(nome + ' é somente leitura — seção gerada pelo SEI');
     const antes = e.getData();
     const body = parse(antes);
     const filhos = [...body.children];
-    const iIni = filhos.findIndex((el) => reIni.test(el.textContent));
-    const iFim = filhos.findIndex((el, i) => i > iIni && reFim.test(el.textContent));
+    const nIni = filhos.filter((el) => reIni.test(texto(el.innerHTML))).length;
+    if (nIni > 1) {
+      return 'NADA ALTERADO: âncora inicial ' + reIni + ' ambígua (' + nIni + ' blocos).\n' + blocos(nome);
+    }
+    const iIni = filhos.findIndex((el) => reIni.test(texto(el.innerHTML)));
+    const iFim = filhos.findIndex((el, i) => i > iIni && reFim.test(texto(el.innerHTML)));
     if (iIni < 0 || iFim < 0) {
       return 'NADA ALTERADO: âncora ' + (iIni < 0 ? 'inicial ' + reIni : 'final ' + reFim) +
         ' não encontrada.\n' + blocos(nome);
@@ -166,12 +190,18 @@
     const faixa = filhos.slice(de, ate + 1);
     const fixos = faixa.filter((el) => el.getAttribute('contenteditable') === 'false');
     const removidos = faixa.filter((el) => !fixos.includes(el));
+    const imgsNaFaixa = removidos.reduce((k, el) => k + el.querySelectorAll('img').length +
+      (el.tagName === 'IMG' ? 1 : 0), 0);
+    if (imgsNaFaixa && !o.permitirImagens) {
+      return 'NADA ALTERADO: a faixa removeria ' + imgsNaFaixa + ' imagem(ns). Estreite as âncoras, ' +
+        'use edição pontual ou passe {permitirImagens: true}.\n' + blocos(nome);
+    }
     // ponto de inserção: onde estava o 1º bloco removido (ou logo após a âncora inicial)
     const ref = removidos.length ? removidos[0] : filhos[iIni].nextSibling;
     const novos = [...parse(limpar(html)).childNodes];
     novos.forEach((n) => body.insertBefore(n, ref));
     removidos.forEach((el) => el.remove());
-    const depois = body.innerHTML.replace(/&nbsp;/g, ' ');
+    const depois = body.innerHTML.replace(/&nbsp;/g, '\u00a0');
     if (!o.dryRun) e.setData(depois);
     return relatorio(nome, antes, depois, {
       blocos_removidos: removidos.length,

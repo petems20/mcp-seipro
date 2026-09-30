@@ -13,6 +13,9 @@ a borda (Cloudflare) no meio. Cada uma pede ação diferente.
 | `[BLOCKED: Cookie/query string data]` | HTML com muitas entidades `&…;` | devolver `SEI.ler(nome)` (normalizado) ou `SEI.blocos(nome)` |
 | Resultado cortado em ~1500 caracteres | limite do `javascript_tool` | ler em fatias ou por blocos |
 | `CKEDITOR.version` não começa com `4.` | editor novo | não escrever; inspecionar a API do editor antes |
+| Arquivo do usuário com acentos como `Ã§` e `<title>SEI/… - <nº>` | é a página "Visualizar documento" (iso-8859-1 declarado, UTF-8 real), não o editor | ler o texto dali; para escrever, pedir `SEI.inspecionar()` |
+| Script de console responde "NADA FOI ALTERADO: … não encontrado" depois de já aplicado | a própria troca mudou a âncora (ex. grafia) | esperado; o script não precisa mais ser usado |
+| "a contagem de imagens mudaria" | a edição tocaria em figura | estreitar a âncora ou usar troca pontual; nunca forçar |
 
 ## API (mcp-seipro)
 
