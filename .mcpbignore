@@ -12,3 +12,4 @@ build/
 .DS_Store
 setup_claude.py
 docs/
+skills/
